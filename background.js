@@ -7,7 +7,7 @@ chrome.tabs.onUpdated.addListener((tabId, changedInfo, tab) => {
                 chrome.storage.local.set({ [`hasInjected_${tabId}`]: true }, () => {
                     chrome.scripting.executeScript({
                         target: { tabId: tabId },
-                        files: ["content.js", "adSkipper.js"]
+                        files: ["botDetector.js", "recommendedCleaner.js"]
                     });
                 });
             }
