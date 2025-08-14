@@ -3,11 +3,13 @@ function cleanRecommended(){
     videos.forEach(video => {
         const progressBar = video.querySelector("div.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment")
         let width = parseInt(progressBar.style.width)
-        if (width > 50 ){ // <-- update value to be user inputted
+        if (width > 1 ){ // <-- update value to be user inputted
+            video.style.border = '2px solid white';
+            video.style.backgroundColor = '#8B0000';
             // grab title
-            let title = video.querySelector('h3.yt-lockup-metadata-view-model-wiz__heading-reset').title
-            console.log(`removing ${title}`)
-            video.remove()
+            // let title = video.querySelector('h3.yt-lockup-metadata-view-model-wiz__heading-reset').title
+            // console.log(`removing ${title}`)
+            // video.remove()
         }
     })
 }
