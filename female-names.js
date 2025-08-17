@@ -1,5 +1,5 @@
 // Source: Mark Kantrowitz, 1991. ~4,987 female names.
-export const femaleNames = [
+const femaleNames = [
 "abagael",
 "abagail",
 "abbe",

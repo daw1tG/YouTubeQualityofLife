@@ -1,4 +1,4 @@
-export  const flaggedEmojis = [
+const flaggedEmojis = [
     "❤️", // Red Heart
     "🩷", // Pink Heart
     "🧡", // Orange Heart

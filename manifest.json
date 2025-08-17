@@ -1,18 +1,23 @@
 {
     "name": "Youtube Quality of Life",
     "description": "Works to clean up Youtube's site for better user experience by detecting and deleting bot comments, blocking out inapropriate ads, removing already watched content on recommended pages, and more",
-    "version": "2.1.1",
+    "version": "2.3.2",
     "manifest_version": 3,
 
     "background": {
         "service_worker": "background.js"
     },
     "permissions":["activeTab", "tabs", "scripting", "storage"],
-    "host_permissions": ["https://www.youtube.com/*"],
+    "host_permissions": ["*://*.youtube.com/*"],
     "content_scripts": [
         {
-            "matches":["*://www.youtube.com/*"],
-            "js": ["botDetector.js", "recommendedCleaner.js"]
+            "matches":["*://*.youtube.com/*"],
+            "js": [
+                "female-names.js",
+                "flagged-emojis.js",
+                "botDetector.js", 
+                "recommendedCleaner.js"
+            ]
         }
     ]
 }

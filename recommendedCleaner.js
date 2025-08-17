@@ -14,17 +14,15 @@ function cleanRecommended(){
     })
 }
 
-let observer;
-if (!observer){
-    observer = new MutationObserver(() => {
+window.addEventListener("yt-navigate-finish", () => {
+    cleanRecommended()
+
+    const observer = new MutationObserver(() => {
         cleanRecommended();
     })
-    observer.observe(document.querySelector)
-}
-
-window.addEventListener('load', () => {
-    setTimeout(cleanRecommended, 2000);
+    observer.observe(document.querySelector("#related"), { childList:true, subtree:true })
   });
+
 
 // < yt-lockup-view-model class="ytd-item-section-renderer lockup" 
 // <div id="primary">
