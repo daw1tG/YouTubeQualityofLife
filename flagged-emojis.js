@@ -23,6 +23,7 @@ const flaggedEmojis = [
     "❤️‍🩹", // Mending Heart
     "💘", // Heart with Arrow
     "💋", // Kiss Mark
-    "🫶"  // Heart Hands
+    "🫶", // Heart Hands
+    "🍒"  // Cherries
 ];
   
