@@ -1,11 +1,23 @@
 console.log("Clean Recommended running...");
 
+function debounce(func, delay=500){
+    let timeOutId;
+
+    return function (...args){
+        clearTimeout(timeOutId)
+        timeOutId = setTimeout(()=>func.apply(this, args), delay)
+    }
+}
+
 function cleanRecommended(video){
     const progressBar = video.querySelector("div.ytThumbnailOverlayProgressBarHostWatchedProgressBarSegment")
     if (!progressBar) return;
 
-    let width = parseInt(progressBar.style.width)
-    if (width > 1 ){ // <-- update value to be user inputted
+    const width = parseFloat(progressBar.style.width || getComputedStyle(progressBar).width);
+    const parentWidth = parseFloat(getComputedStyle(progressBar.parentElement).width);
+    const percent = (width / parentWidth) * 100;
+
+    if (percent > 1 ){ // <-- update value to be user inputted
             // video.style.border = '2px solid white';
             // video.style.backgroundColor = '#8B0000';
             //grab title
@@ -50,7 +62,7 @@ function watchAds(adSlot){
 
 function checkInitial(){
     document.querySelectorAll("yt-lockup-view-model.ytd-item-section-renderer").forEach(video=>cleanRecommended(video))
-    document.querySelectorAll("YTD-AD-SLOT-RENDERER".toLowerCase()).forEach(ad=>watchAds(ad))
+    document.querySelectorAll("ytd-ad-slot-renderer").forEach(ad=>watchAds(ad))
     let shorts = window.location.pathname == "/" ? "ytd-rich-shelf-renderer":"ytd-reel-shelf-renderer"
     document.querySelectorAll(shorts).forEach(container=>removeShorts(container))
 }
@@ -61,37 +73,48 @@ function waitForContentsToLoad(observer){
         setTimeout(() => waitForContentsToLoad(observer), 1000)
         return;
     }
-    setTimeout(checkInitial, 1000)
-    observer.observe(contents, { childList: true })
+    setTimeout(checkInitial, 500)
+    observer.observe(contents, { childList: true, subtree: true })
 }
 
+function filterNode(node){
+    const tag = node.tagName ? node.tagName.toUpperCase() : "";
+    let target = node.querySelector("yt-lockup-view-model")
+    if (target != null || tag == "YT-LOCKUP-VIEW-MODEL") {
+        console.log(`cleaning recommended...`)
+        cleanRecommended(node)
+        return true
+    }
+    target = node.querySelector("ytd-ad-slot-renderer")
+    if (target != null || tag == "YTD-AD-SLOT-RENDERER") {
+        console.log(`Blocking ads...`)
+        watchAds(node)
+        return true
+    }
+    target = node.querySelector("ytd-reel-shelf-renderer")
+    if (target != null || /ytd-(reel|rich)-shelf-renderer/i.test(tag)) {
+        console.log(`Blocking shorts...`)
+        removeShorts(node)
+        return true
+    }
+
+    return false
+}
+
+let observer;
 window.addEventListener("yt-navigate-finish", () => {
-    const observer = new MutationObserver((mutationList, observer) => {
+
+    if (observer) observer.disconnect();
+    const debouncedCheckInitial = debounce(checkInitial, 1500);
+
+    observer = new MutationObserver((mutationList, observer) => {
+        let foundRelevant = false
         for (const mutation of mutationList) {
             for (const node of mutation.addedNodes){ // node == "ytd-rich-item-renderer" if on homepage, else node == targets below
-                console.log(node)
-                const tag = node.tagName;
-                let target = node.querySelector("yt-lockup-view-model")
-                if (target != null || tag == "YT-LOCKUP-VIEW-MODEL") {
-                    console.log(`cleaning recommended...`)
-                    cleanRecommended(node)
-                    continue;
-                }
-                target = node.querySelector("YTD-AD-SLOT-RENDERER".toLowerCase())
-                if (target != null || tag == "YTD-AD-SLOT-RENDERER") {
-                    console.log(`blocking ad...`)
-                    watchAds(node)
-                    continue;
-                }
-                target = node.querySelector("ytd-reel-shelf-renderer")
-                if (target != null || /ytd-(reel|rich)-shelf-renderer/i.test(tag)) {
-                    console.log(`blocking shorts...`)
-                    removeShorts(node)
-                    continue;
-                }
+                foundRelevant ||= filterNode(node)
             }
         }
-
+        if (foundRelevant) debouncedCheckInitial();
     })
 
     waitForContentsToLoad(observer)
