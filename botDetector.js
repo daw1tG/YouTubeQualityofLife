@@ -1,7 +1,5 @@
 console.log("Bot detector running...");
 
-// import AhoCorasick from 'aho-corasick';
-
 
 function debounce(func, delay=500){
     let timeOutId;
@@ -17,7 +15,7 @@ function stripEmojis(text){
 }
 
 let oldComments;
-// in development
+
 function checkForBotMessage(comment, text){
     const emojiRegex = /(\p{Extended_Pictographic}(?:\u200D\p{Extended_Pictographic})*)/gu;
     const hasEmojis = text.match(emojiRegex)
@@ -33,6 +31,7 @@ function checkForBotMessage(comment, text){
         }
         
     }
+
     // check duplicate comment
     if (oldComments == null) oldComments = new Set();
     const cleanedText = stripEmojis(text) // bots copy comments and append emojis at the end
@@ -52,50 +51,25 @@ function checkForBotMessage(comment, text){
     // check for time stamp
     const hasTimeStamp = /\d?\d:\d\d/
     if (hasTimeStamp.test(text)){
-        flags -= 100 // probably human
+        flags -= 1000 // probably human
     }
 
-    // ! <-- spam
-    let exclamationCount = text.split("!").length - 1
+    // ! spam
+    let exclamationCount = text.match(/!+(?:.)/g) || []
 
-    if (exclamationCount > 3){
+    if (exclamationCount.length > 3){
         flags += 10
     }
 
-    // botted likes (50 - 250 range) usually
-
-    // replys <-- way too taxing
-    // const replyTag = comment.querySelector("#replies")
-    // const hasReplies = replyTag.querySelector("button")
-    // if (hasReplies){
-    //     hasReplies.click()
-    //     let replyContainer = replyTag.querySelector("#expander-contents")
-    //     replyContainer.querySelectorAll("yt-attributed-string").forEach(reply => {
-    //         if (reply.childNodes[0].textContent.match(/(b | B)ot/)){ // <-- issure with textContent call
-    //             flags += 1000 // for sure bot comment
-    //         }
-    //     })
-
-    // }
-
-    return flags > 15 // <-- abitrary number until fully training model
+    return flags > -1 // <-- abitrary number until fully training model
 }
 
-// let botNameRegex = /^@([A-Z][a-z]+)([A-Z][a-z]+)(?:-[a-z0-9]{2,8})?$/; 
-// ^ too many false alarms + not all bots use this scheme
 
-const femaleNameBatches = (() => {
-    const batchSize = 200;
-    const batches = [];
-    for (let i = 0; i < femaleNames.length; i += batchSize) {
-      const escaped = femaleNames.slice(i, i + batchSize)
-        .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-      batches.push(new RegExp(`(${escaped.join('|')})`, 'i'));
-    }
-    return batches;
-  })();
+const femaleNamesRegex = new RegExp(femaleNames
+                                    .map(n => n.replace(/[.*+?^${}()|[\]\\]/g))
+                                    .join('|')
+                                    , "i")
 
-//  @ErosMoriahah <-- not detected ???
 function isBotUsername(username) {
     console.log("checking: ", username)
     const crillicRegex = /^\p{Script=Cyrillic}+$/u
@@ -104,82 +78,78 @@ function isBotUsername(username) {
         return true;
     }
 
-    const usernameLower = username.toLowerCase()
-    for (const regex of femaleNameBatches) {
-        let match = cleanedUsername.match(regex)
-        console.log(match)
-        if (regex.test(cleanedUsername)) return true;
-    }
-    return false;
+    console.log("match: ", cleanedUsername.match(femaleNamesRegex))
+
+    return femaleNamesRegex.test(cleanedUsername)
 }
 
-function checkProfileWithDOMParser(profileUrl){
-    let isBot = false
-    chrome.runtime.sendMessage({ action: "fetchProfile", url: profileUrl }, response=>{
-        if (response.success){
-            const html = response.html
-            const doc = new DOMParser().parseFromString(html, "text/html")
 
-            const bio = doc.querySelector("#description")?.textContent ?? "";
-            if (bio.match(/(link|click|find me|onlyfans|dating|💋|👇|💦|🍓|🍒|🍑)/i)) {
-                console.log("🚨 Suspicious bio: ", bio);
-                isBot = true
+function checkProfileWithYTInitialData(profileUrl, username) {
+    return new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: "get yTInitialData", url: profileUrl },
+            response => {
+
+                if (!response.success) {
+                    console.error("Failed to fetch:", response.error);
+                    resolve(false);
+                    return;
+                }
+
+                const ytInitialData = response.ytInitialData;
+
+                if (ytInitialData
+                    .contents
+                    .twoColumnBrowseResultsRenderer
+                    .tabs.length > 1) resolve(false); // checks for any posts
+
+
+                const externalLink = ytInitialData?.header?.pageHeaderRenderer
+                        ?.content?.pageHeaderViewModel
+                        ?.attribution?.attributionViewModel
+                        ?.text?.commandRuns?.[0]
+                        ?.onTap?.innertubeCommand
+                        ?.urlEndpoint;
+
+                if (externalLink && !/youtube/.test(externalLink)) {
+                    console.log(username, " is bot for sure");
+                    resolve(true);
+                    return;
+                }
+
+                const descriptionRegex = /(link|click|find me|onlyfans|dating|💋|👇|💦|🍓|🍒|🍑)/i;
+
+                const description = ytInitialData
+                    ?.header?.pageHeaderRenderer?.content
+                    ?.pageHeaderViewModel?.description
+                    ?.descriptionPreviewViewModel?.description?.content ?? "";
+
+                const description2 = ytInitialData
+                    ?.contents?.twoColumnBrowseResultsRenderer?.tabs?.[0]
+                    ?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]
+                    ?.itemSectionRenderer?.contents?.[0]
+                    ?.shelfRenderer?.endpoint
+                    ?.showEngagementPanelEndpoint?.engagementPanel
+                    ?.engagementPanelSectionListRenderer?.header
+                    ?.engagementPanelTitleHeaderRenderer?.title?.simpleText ?? "";
+
+                if (descriptionRegex.test(description) ||
+                    descriptionRegex.test(description2)) {
+                    resolve(true);
+                    return;
+                }
+
+                resolve(false);
             }
-        }
-        else {
-            console.error("Failed to fetch:", response.error);
-        }
-    })
-
-    return isBot
-}
-function checkProfileWithYTInitialData(profileUrl){
-    let isBot = false
-
-    chrome.runtime.sendMessage({ action: "get yTInitialData", url: profileUrl }, response => {
-        if (response.success){
-            const ytInitialData = response.ytInitialData
-            const description = ytInitialData
-                                .header
-                                .pageHeaderRenderer
-                                .content
-                                .pageHeaderViewModel
-                                .description
-                                .descriptionPreviewViewModel
-                                .description
-                                .content
-            if (description.match(/More about this channel/)){
-                console.log("BOTTTTTTTt?????!!!!!!")
-            }
-
-            const linkedChannels = ytInitialData
-                                   .contents
-                                   .twoColumnBrowseResultsRenderer
-                                   .tabs[0]
-                                   .tabRenderer
-                                   .content
-                                   .sectionListRenderer
-                                   .contents[0]
-                                   .itemSectionRenderer?.contents[0]
-                                   .shelfRenderer
-                                   .content
-                                   .horizontalListRenderer
-                                   .items
-        }
-        else {
-            console.error("Failed to fetch:", response.error);
-        }
-    })
-
-    return isBot
+        );
+    });
 }
 
 function checkProfile(username){
-    const profileUrl = "https://www.youtube.com/"+username
-    return checkProfileWithDOMParser(profileUrl) || checkProfileWithYTInitialData(profileUrl)
+    const profileUrl = "https://www.youtube.com/" + username
+    return checkProfileWithYTInitialData(profileUrl, username) 
 }
 
-function scanComment(comment) {
+async function scanComment(comment) {
     // check messages and usernames
     const authorSpan = comment.querySelector('#author-text span');
     if (!authorSpan) {
@@ -191,6 +161,7 @@ function scanComment(comment) {
     let text = message.childNodes[0].textContent
 
     const username = authorSpan.textContent.trim();
+    console.log("checking ", username)
     if (!isBotUsername(username)){
         console.log(`${username} is not a bot`)
         return
@@ -199,56 +170,38 @@ function scanComment(comment) {
         console.log(`${username} is not a bot`)
         return
     }
-    if (!checkProfile(username)){
+
+    let botProfile = await checkProfile(username)
+    if (!botProfile){
         console.log(`${username} might be a bot`)
 
+        // comment.style.border = '2px solid white';
+        // comment.style.backgroundColor = '#8B0000';
+        return
+    }
+    else {
         comment.style.border = '2px solid white';
         comment.style.backgroundColor = '#8B0000';
-        return
     }
     console.log('🚨 Potential Bot Detected:', username);
 
     // test
-    comment.style.border = '2px solid white';
-    comment.style.backgroundColor = '#8B0000';
-
-    // store pfp <-- later
-    // let thumbnailContainer = comment.querySelector("#author-thumbnail")
-    // let pfp = thumbnailContainer.querySelector("img")
-    // store img src (bots reuse pfps)
-    // let pfpObj = JSON.parse(localStorage.getItem("botPFPS") || [])
-    // pfpObj.push(pfp.src)
-    // localStorage.setItem("botPFPS", JSON.stringify(pfpObj))
-
+    // comment.style.border = '2px solid white';
+    // comment.style.backgroundColor = '#8B0000';
 
     // comment.remove();
 }
 
-
-// function checkInitial(){
-//     document.querySelectorAll("ytd-comment-thread-renderer").forEach(comment => {
-//         scanComment(comment);
-//     })
-// }
-
-
 function watchComments(commentsSection) {
-    const proccessNewComments = debounce((comments)=>{
+const proccessNewComments = debounce((comments)=>{
         for (const comment of comments){
             if (comment && comment.tagName === "YTD-COMMENT-THREAD-RENDERER") {
-                console.log("New comment loaded:", comment);
-                scanComment(comment);
+                // console.log("New comment loaded: ", comment);
+                if (comment.getAttribute("checked") !== "true") scanComment(comment);
+                else comment.setAttribute("checked", "true");
+
             }
         }
-        // let comment;
-        // while (comment && comment.tagName === "YTD-COMMENT-THREAD-RENDERER"){
-        //     comment = comments.pop()
-        // }
-        // console.log("comment: ",comment)
-        // if (comment && comment.tagName === "YTD-COMMENT-THREAD-RENDERER") {
-        //     console.log("New comment loaded:", comment);
-        //     scanComment(comment);
-        // }
     }, 500)
 
     let newComments = [];
@@ -257,7 +210,10 @@ function watchComments(commentsSection) {
             newComments.push(...mutation.addedNodes)
         }
         
-        if (newComments.length) proccessNewComments(newComments);
+        if (newComments.length) {
+            proccessNewComments(newComments)
+            // newComments = []
+        }
     });
   
     observer.observe(commentsSection, { childList: true});
@@ -282,7 +238,7 @@ function waitForCommentsToLoad(){
 window.addEventListener("yt-navigate-finish", () => {
     console.log("Navigation finished on YouTube");
     // in development
-    if (window.location.pathname != '/'){
+    if (window.location.pathname.includes("watch")){
         waitForCommentsToLoad();
     }
 });

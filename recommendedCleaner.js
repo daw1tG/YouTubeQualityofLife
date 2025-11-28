@@ -79,7 +79,7 @@ function waitForContentsToLoad(observer){
 
 function filterNode(node){
     const tag = node.tagName ? node.tagName.toUpperCase() : "";
-    let target = node.querySelector("yt-lockup-view-model")
+    let target = node?.querySelector("yt-lockup-view-model") ?? null
     if (target != null || tag == "YT-LOCKUP-VIEW-MODEL") {
         console.log(`cleaning recommended...`)
         cleanRecommended(node)
