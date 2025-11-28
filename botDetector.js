@@ -83,12 +83,35 @@ function isBotUsername(username) {
     return femaleNamesRegex.test(cleanedUsername)
 }
 
+function grabBotPFPs(){
+    let setOfBotPFPs
+    try {
+        chrome.runtime.sendMessage(
+            { action: "get PFPs"},
+             response => setOfBotPFPs = response
+        )
+    } catch (error) {
+        console.log(err)
+    }
+
+    return setOfBotPFPs
+}
+
+function updateBotPFPs(set){
+    try {
+        chrome.runtime.sendMessage(
+            { action: "update PFPs", set: set },
+             response => console.log(response)
+        )
+    } catch (error) {
+        console.log(err)
+    }
+}
 
 function checkProfileWithYTInitialData(profileUrl, username) {
     return new Promise(resolve => {
         chrome.runtime.sendMessage({ action: "get yTInitialData", url: profileUrl },
             response => {
-
                 if (!response.success) {
                     console.error("Failed to fetch:", response.error);
                     resolve(false);
@@ -101,7 +124,16 @@ function checkProfileWithYTInitialData(profileUrl, username) {
                     .contents
                     .twoColumnBrowseResultsRenderer
                     .tabs.length > 1) resolve(false); // checks for any posts
+                
+                let profilePic = ytInitialData.metadata
+                        ?.channelMetadataRenderer
+                        ?.avatar.thumbnails
 
+                let setOfBotPFPs = grabBotPFPs()
+
+                if (setOfBotPFPs && setOfBotPFPs.has(profilePic)){
+                    resolve(true)
+                }
 
                 const externalLink = ytInitialData?.header?.pageHeaderRenderer
                         ?.content?.pageHeaderViewModel
@@ -110,8 +142,13 @@ function checkProfileWithYTInitialData(profileUrl, username) {
                         ?.onTap?.innertubeCommand
                         ?.urlEndpoint;
 
-                if (externalLink && !/youtube/.test(externalLink)) {
+                if (externalLink 
+                    && !/(?:youtube){2}|tiktok|insta|x\.com/i.test(externalLink.url)) {
                     console.log(username, " is bot for sure");
+                    if (setOfBotPFPs != null){
+                        setOfBotPFPs.add(profilePic)
+                        updateBotPFPs(setOfBotPFPs)
+                    }
                     resolve(true);
                     return;
                 }
@@ -134,6 +171,10 @@ function checkProfileWithYTInitialData(profileUrl, username) {
 
                 if (descriptionRegex.test(description) ||
                     descriptionRegex.test(description2)) {
+                    if (setOfBotPFPs != null){
+                        setOfBotPFPs.add(profilePic)
+                        updateBotPFPs(setOfBotPFPs)
+                    }
                     resolve(true);
                     return;
                 }
@@ -240,6 +281,7 @@ window.addEventListener("yt-navigate-finish", () => {
     // in development
     if (window.location.pathname.includes("watch")){
         waitForCommentsToLoad();
+        oldComments == null
     }
 });
   

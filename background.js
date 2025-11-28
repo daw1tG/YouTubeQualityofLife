@@ -1,9 +1,14 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse)=>{
-    if (message.action == "fetchProfile"){
-        fetch(message.url)
-        .then(result => result.text())
-        .then(html => sendResponse({ success: true, html }))
-        .catch(err => sendResponse({ success: false, error: err.toString() }))
+    if (message.action == "update PFPs"){
+        chrome.storage.sync.set({botPFPs: message.set})
+        chrome.storage.sync.get(["botPFPs"]).then(
+            response => sendResponse(`updated botPFPs: ${{ set: response }}`)
+        )
+    }
+    if (message.action == "get PFPs"){
+        chrome.storage.sync.get(["botPFPs"]).then(
+            response => sendResponse(response)
+        )
     }
     if (message.action == "get yTInitialData"){
         fetch(message.url)
